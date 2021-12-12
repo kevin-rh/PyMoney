@@ -51,7 +51,7 @@ def add(money, record):
             print("Cancle Addition\n")
             return money, record
         except ValueError: # Exception if can not split into two (desc, amount)
-            print("Invalid format. Should be <description> <amount>, example: breakfast -50\n")
+            print("Invalid format. Expect 2 members: <description> <amount>. e.g.: breakfast -50\n")
         else:
             try:
                 amount_int = int(amount)
@@ -79,14 +79,19 @@ def delete(money, record):
         try:
             delete = input("Which record do you want to delete? ").split()
             assert delete != 'q'
-            del_data = tuple([delete[0], int(delete[1])])
         except AssertionError:
             print("Cancel Deletion\n")
             break
-        except ValueError:
-            print("Input format. Should be <description> <amount>, example: breakfast -50\n")
         else:
-            break
+            try:
+                assert len(delete)!=2
+                del_data = tuple([delete[0], int(delete[1])]);
+            except ValueError:
+                print("Invalid format. Amount should be an integer.\n")
+            except AssertionError:
+                print("Invalid format. Expect 2 members: <description> <amount>. e.g.: breakfast -50\n")
+            else:
+                break
 
     print("\nHere's data found inside in your records:\n")
     print(f"Index\t{print_Desc:<25s} {print_Amount:^8s}")
