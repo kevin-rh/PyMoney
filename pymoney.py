@@ -1,4 +1,5 @@
 # Headers
+from os import name
 import sys
 from typing import Type
 print_Category = "Category"
@@ -10,6 +11,7 @@ cmd_set = (
     "delete", 
     "view categories", 
     "add categories",
+    "delete categories",
     "find", 
     "exit",
 )
@@ -23,32 +25,45 @@ class Record:
     _name,      -- label the record
     _amount     -- money amount in a record
     """
-    def __init__(self, category, name, amount):
+    def __init__(self, category, name, amount, format='$'):
         """Initialize a record."""
         if type(category) != str: raise ValueError
         if type(name) != str: raise ValueError
+        if format not in {'Rp','$'}: raise ValueError
+
         self._category = category
         self._name = name
         self._amount = int(amount)
+        self._format = format
+
+        pass
+
+
+    _format = '$'
+    def __repr__(self):
+        return f"{__class__.__name__} [{self._category}]: {self._name} {str(self._amount)}{self._format}"  
+        pass
 
     @property
-    def amount(self):
+    def amount(self) -> int:
         """Return the Amount."""
         return self._amount
     @property
-    def category(self):
+    def category(self) -> str:
         """Return the Category."""
         return self._category
     @property
-    def name(self):
+    def name(self) -> str:
         """Return the Name."""
         return self._name
 
     def __eq__(self, object):
+        """Compare whole"""
         return self._amount == object._amount\
         and self._category == object._category\
         and self._name == object._name 
     def __le__ (self, object):
+        """Compare partial"""
         return self._category == object._category\
         and self._name == object._name 
         
@@ -93,8 +108,7 @@ class Records:
             except ValueError:  # Exception: Not an Integer
                 print("Invalid value for money. Should be an Integer amount of money.\n")
             else:
-                print()
-                #return money
+                return
         pass
     
     def add(self, record, categories):
@@ -109,13 +123,12 @@ class Records:
                 record = record.split()
                 [category, desc, amount] = record
                 if not categories.is_category_valid(category):
-                    record = input("Add an expense or income record with description and an amount:\n")
-                    continue
-                    #categories.add_categories(category) #TODO EXTRA
+                    parent = input('Where this new category branching from? (type \"main\" if want to be the main category) ') 
+                    if categories.add(category, parent) == False: continue
                 self._record.append(Record(category, desc, amount))
                 self._money += int(amount)
             except AssertionError:
-                print("Cancel Add Fucntion\n")
+                print("Adding new record canceled!\n")
                 return None #return money, record, categories
             except ValueError: # Exception if can not split into two (desc, amount)
                 print("Invalid format.\nFormat: <category> <description> <amount>. e.g.: food breakfast -50\n")
@@ -148,9 +161,8 @@ class Records:
             try:
                 assert delete_record != 'q'
             except AssertionError:
-                print("Cancel Deletion Function\n")
-                pass
-                #return money, record, categories
+                print("Record deletion canceled!\n")
+                return
             else:
                 delete_record = delete_record.split()
                 try:
@@ -186,24 +198,18 @@ class Records:
         if found == 0:                 # No data was found
             print(f"Data: {del_data.category:s} {del_data.name:s} "+"{del_data.amount:d} "if flag is False else ""+"not found.")
         elif found == 1:                # Found single, do deletion immediately
-            while True:
-                confirm = input("Delete the only data (y/n)? ")
-                if confirm in ('y','n'):
-                    if confirm == 'y':
-                        del(self._record[data_idx_found[0]])
-                        print("Data id: 1 deleted.")
-                        self._money -= del_data.amount
-                    break
-                else :
-                    print("Invalid input! Must be \'y\' or \'n\'.\n")
+            if input_confirm("Delete the only data ?"):
+                del(self._record[data_idx_found[0]])
+                print("Data id: 1 deleted.")
+                self._money -= del_data.amount
         else:                                       # Found multiple, do selection, do deletion
 
             idx = input("Which data index you want to delete? Type \"all\" for all. ")
             if(idx=='all') :
+                print('\n',end='\t')
                 for m,i in enumerate(data_idx_found):
-                    ii=1+i
-                    print(f"Data id: {ii} deleted.")
-                    del(self._record[data_idx_found(i)-m])
+                    print(f"Data id: {m+1} deleted.")
+                    self._record.pop(i-m)
                 self._money -= (del_data.amount*(len(data_idx_found)))
             else :
                 try:
@@ -225,8 +231,6 @@ class Records:
         Keyword arguments:
         categories  -- the entire category list
         """
-        # DEBUG
-        #print(record)
         record_pair_list = [(data.category+', '+data.name+', '+str(data.amount)) for data in self._record]
         record_line_list = '\n'.join(record_pair_list)
         
@@ -244,15 +248,9 @@ class Records:
         except FileNotFoundError:       # Exception: File did not exist
             print("File did not existed. Failed to write data to the file!\n")
         
-        while True:
-            try:
-                confirm = input("Exit (y/n)? ")
-                assert confirm in ('y','n')
-            except AssertionError:
-                print("Invalid Input. Should be \'y\' or \'n\'.\n")
-            else:
-                print()
-                return #return (confirm =='y')
+        confirm = input_confirm("Exit ?")
+        print()
+        return confirm
     
     def find(self, target_categories):
         """Find record by categories.
@@ -300,6 +298,7 @@ class Categories:
                 i+=1
             return L
 
+        basics_catg = ['expense', ['food', ['meal', 'snack', 'drink'], 'transportation', ['bus', 'railway']], 'income', ['salary', 'bonus']]
         # Read Data from a File
         try:
             with open("categories.txt","r") as fh:
@@ -309,40 +308,105 @@ class Categories:
                     self._categories = line_to_nested_list(lines)
                 except AssertionError:
                     print("Recorded file is an empty file.\n")
-                    self._categories = ['expense', ['food', ['meal', 'snack', 'drink'], 'transportation', ['bus', 'railway']], 'income', ['salary', 'bonus']]  
+                    self._categories = basics_catg
                 except ValueError:      # Exception: File first line not an Integer
                     print("Fail to read the recorded file.\n")
-                    self._categories = ['expense', ['food', ['meal', 'snack', 'drink'], 'transportation', ['bus', 'railway']], 'income', ['salary', 'bonus']]  
+                    self._categories = basics_catg
                 else:                   # Read data to the record variable
                     pass
         except FileNotFoundError:       # Exception: File did not exist
-            self._categories = ['expense', ['food', ['meal', 'snack', 'drink'], 'transportation', ['bus', 'railway']], 'income', ['salary', 'bonus']]  
+            self._categories = basics_catg
         return 
-    def add(self, category, parent=''):
-        """Adding a category on a category list"""
+    
+    @staticmethod
+    def rec_find(L, val):
+        """Return all subcategories of a category as a list.ad
+        Return empty list [] if no category is found.
 
-        def rec_find(L, val):
-            if type(L) in {list, tuple}: # if look inside members of L
-                for i, v in enumerate(L):
-                    p = rec_find(v, val) # recursively find each member
+        Keyword arguments:
+        L       -- the list
+        val     -- the search data
+        """
+        if type(L) in {list, tuple}: # if look inside members of L
+            for i, v in enumerate(L):
+                p = Categories.rec_find(v, val) # recursively find each member
                 if p == True: # L[i] == val, so we return (i,)
                     return (i,)
                 if p != False: # L[i] recursively found val, 
                     return (i,)+p # so we prepend i to its path p
-            return L == val # either L is not seq or for-loop didn't find
+        return L == val # either L is not seq or for-loop didn't find
 
-        if parent == '':
+    def add(self, category, parent='main'):
+        """Return all subcategories of a category as a list.ad
+        Return empty list [] if no category is found.
+
+        Keyword arguments:
+        category    -- the new added category
+        parent      -- the category where the new added going to be branched from
+        """
+        if parent == 'main':
             self._categories.append(category)
+            print(f"Category \"{category}\" succesfully added as one of the main category!\n")
             return
-        if not self.is_category_valid(parent):
+
+        # Check if a name category has been occupied
+        if self.is_category_valid(category):
+            print("The category already exist. Failed adding new category!\n")
+            return False
+
+        # Check if the parent is exist
+        index = Categories.rec_find(self._categories, parent)
+        if index:
+            tmp = self._categories
+            for id in index[:-1]:
+                tmp = tmp[id]
+            id = index[-1]
+            if type(tmp[id+1]) == list: # subcategory is exist
+                tmp = tmp[id+1]
+                tmp.append(category)
+            else:   # doesn't have subcategory
+                tmp.insert(id+1, [category])
+            print(f"Category \"{category}\" succesfully added inside category \"{parent}\"!\n")
+            return True
+        else:
             print("The parent cannot be found. Failed adding new category!\n")
+            return False
+    
+    def delete(self, records ,category):
+        """Return all subcategories of a category as a list.ad
+        Return empty list [] if no category is found.
+
+        Keyword arguments:
+        category    -- the new added category
+        parent      -- the category where the new added going to be branched from
+        """
+        target_categories = categories.find_subcategories(category)
+        if target_categories:
+            records.find(target_categories)
+            if not input_confirm("Agree to delete ALL DATA in this category to do category deletion?"):
+                print("Category deletion canceled!\n")
+                return False
+        else:
+            print("The category you looking for does not exist. Failed deleting a category!\n")
+            return False
         
+        # Delete all data inside the deleted category
+        for data in records._record:
+            if data._category in target_categories:
+                records._record.remove(data)
+
+        # Delete the categories and it's subcategory
+        index = Categories.rec_find(self._categories, category)
         catt = self._categories
-        for id in rec_find(self._categories, parent):
+        for id in index[:-1]:
             catt = catt[id]
-        catt.append(category)
-        pass
-            
+        id = index[-1]
+        if id+1 < len(catt):
+            if type(catt[id+1]) == list:
+                catt.pop(id+1)
+        catt.pop(id)
+        print("Category \"{category}\" successfully deleted!\n")
+        return True
 
     def find_subcategories(self, category):
         """Return all subcategories of a category as a list.ad
@@ -397,7 +461,9 @@ class Categories:
         if depth ==0: print()
     
     def save(self):
+        """Write the category list to a file with numbering infornt"""
         def list_depth_gen(categories = self._categories, depth=1):
+            """Numbering using depth"""
             txt = ''
             for atom in categories:
                 if type(atom) != list:
@@ -409,11 +475,24 @@ class Categories:
         with open("categories.txt", "w") as fh:
             for line in list_depth_gen(self._categories):
                 fh.write(line)
-            
-
-
 
 # Global Function
+def input_confirm(question='?'):
+    """Print a selected question and request y/n as input.
+    Return True if 'y' as input, and False if 'n'.
+    Otherwise, keep requesting input.
+
+    Keyword arguments:
+    question    -- the question to be printed
+    """
+    while True:
+        confirm = input(f"{question} (y/n) ")
+        if confirm in ('y','n'):
+            return confirm == 'y'
+        else :
+            print("Invalid input! Must be \'y\' or \'n\'.\n")
+    
+
 def input_command():
     """Input command to do error control.
     Control when a command in the intreperter is correct or not.
@@ -451,12 +530,14 @@ while True:
         target_categories = categories.find_subcategories(category)
         records.find(target_categories)
     elif command == 'exit':
-        records.save()
         categories.save()
-        break
+        if(records.save()): break
     elif command == 'add categories':
         category = input('Whats the name of your new category? ') 
         parent = input('Where this new category branching from? (type \"main\" if want to be the main category) ') 
-        categories.add(category, parent if parent!='main' else '')
+        categories.add(category, parent)
+    elif command == 'delete categories':
+        category = input('Which category do you want to delete? ')
+        categories.delete(records, category)
     else:
         sys.stderr.write('Invalid command. Try again.\n')
